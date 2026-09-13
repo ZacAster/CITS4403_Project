@@ -12,7 +12,7 @@ Vehicle circulation and parking-space turnover in a near-capacity campus car par
 
 ## Research question
 
-**Can limiting vehicle entry when a campus car park is nearly full reduce congestion and parking search time?**
+Would introducing entry control in a near-capacity campus car park reduce parking search time and internal congestion
 
 ## Current modelling idea
 
