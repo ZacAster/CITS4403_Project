@@ -6,13 +6,17 @@ We are interested in parking congestion in busy campus car parks.
 
 During busy periods, a car park can stay close to full capacity for a long time. New vehicles may still enter and drive around looking for a space, which can increase congestion inside the car park.
 
+We want to use a computational model to explore whether controlling vehicle entry could improve this situation.
+
 ## System
 
-Vehicle circulation and parking-space turnover in a near-capacity campus car park.
+Parking and vehicle circulation in a near-capacity campus car park.
 
 ## Research question
 
-Would introducing entry control in a near-capacity campus car park reduce parking search time and internal congestion
+**Would introducing entry control in a near-capacity campus car park reduce parking search time and internal congestion?**
+
+Entry control is a hypothetical measure that we want to test in the model. It is not currently used in the campus car park we are thinking about.
 
 ## Current modelling idea
 
@@ -24,10 +28,10 @@ The basic idea is that vehicles arrive, search for a parking space, park when a 
 
 We expect entry control to reduce the number of vehicles searching inside the car park when it is close to full capacity.
 
-However, if entry is restricted too much, vehicles may spend more time waiting outside the car park instead.
+However, if entry is restricted too much, it may simply move some of the waiting from inside the car park to the entrance.
 
 ## Current status
 
 This is our initial project direction for Checkpoint 1.
 
-The detailed model rules, entry-control methods, parameters, measurements and experiment design are still being decided and will be developed through the project issues.
+The exact entry-control rules, model behaviour, parameters, measurements and experiment design have not been finalised yet.
