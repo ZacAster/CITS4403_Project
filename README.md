@@ -8,7 +8,7 @@ During busy periods, a car park can stay close to full capacity for a long time.
 
 ## System
 
-Vehicle movement and parking in a near-capacity campus car park.
+Vehicle circulation and parking-space turnover in a near-capacity campus car park.
 
 ## Research question
 
