@@ -163,8 +163,6 @@ The lecture traffic model is useful as a reference for simple vehicle movement, 
 
 Before Checkpoint 2, we want to add the missing experiment features, record useful measurements, run a small set of trial conditions, and produce at least one clear plot.
 
-See `docs/GITHUB_ISSUES.md` for the remaining tasks.
-
 ## Repository structure
 
 ```text
