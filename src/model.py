@@ -1,19 +1,19 @@
 """
-Baseline parking-search agent-based model.
+Parking-search agent-based model.
 
-Already implemented here:
-- one-way loop road
-- parking spaces
-- searching-car movement
-- two-step parking manoeuvres
-- temporary blocking behind a parking car
-- parked cars leaving after a configurable stochastic duration
-- random/configurable arrival rate
-- outside waiting queue
-- entry control
-
-Still to be added in later development tasks:
-- measurements and experiment summaries
+Implemented here:
+ one-way loop road
+ parking spaces
+ searching-car movement
+ two-step parking manoeuvres
+ temporary blocking behind a parking car
+ parked cars leaving after a configurable stochastic duration
+ random/configurable arrival rate
+ outside waiting queue
+ entry control
+ per-step measurements
+ per-vehicle waiting-time measurements
+ end-of-run result summary
 """
 
 from dataclasses import dataclass
@@ -34,6 +34,11 @@ class Vehicle:
     spot_idx: Optional[int] = None
     parking_timer: int = 0
     parked_timer: int = 0
+
+    # Timestamps used for experiment measurements.
+    arrival_time: Optional[int] = None
+    entry_time: Optional[int] = None
+    parked_time: Optional[int] = None
 
 
 class ParkingModel:
@@ -68,7 +73,7 @@ class ParkingModel:
         self.n_spaces = n_spaces
         self.parking_manoeuvre_steps = parking_manoeuvre_steps
 
-        # Experiment settings.  These can be changed when the model is created
+        # Experiment settings. These can be changed when the model is created
         # without changing any of the movement code below.
         self.arrival_prob = arrival_prob
         self.mean_parking_duration = mean_parking_duration
@@ -97,6 +102,17 @@ class ParkingModel:
         self.next_vid = 0
         self.time = 0
 
+        # Measurements for Issue #11.
+        # step_results stores one model-state record for each completed step.
+        self.step_results = []
+
+        # parking_results stores waiting-time results for cars that successfully
+        # complete parking during the simulation.
+        self.parking_results = []
+
+        # Number of searching cars blocked during the most recent movement step.
+        self.current_blocked_count = 0
+
         # Start partly occupied so the demo does not need a long warm-up.
         n_initial = round(initial_occupancy * n_spaces)
         if n_initial:
@@ -108,6 +124,12 @@ class ParkingModel:
                 car.state = "PARKED"
                 car.spot_idx = int(spot_idx)
                 car.parked_timer = self._sample_parking_duration()
+
+                # These cars are already parked when the simulation begins.
+                car.arrival_time = 0
+                car.entry_time = 0
+                car.parked_time = 0
+
                 self.spots[int(spot_idx)] = car.vid
 
     def _sample_parking_duration(self):
@@ -150,15 +172,16 @@ class ParkingModel:
         """Place an existing vehicle at road position 0 as a searching car."""
         car.state = "SEARCHING"
         car.road_pos = 0
+        car.entry_time = self.time
         self.road[0] = car.vid
 
     def add_car_at_entrance(self):
         """
         Manually add one new searching car at road position 0.
 
-        This helper is kept for the baseline demo and existing tests.  It now
-        also respects entry control.  If the entrance or entry-control rule
-        blocks entry, no manual car is created and False is returned.
+        This helper is kept for the baseline demo and existing tests. It also
+        respects entry control. If the entrance or entry-control rule blocks
+        entry, no manual car is created and False is returned.
 
         Experiment arrivals are handled separately by _generate_arrival(),
         which stores blocked arrivals in the outside waiting queue.
@@ -167,6 +190,7 @@ class ParkingModel:
             return False
 
         car = self._new_vehicle()
+        car.arrival_time = self.time
         self._place_car_at_entrance(car)
         return True
 
@@ -174,13 +198,14 @@ class ParkingModel:
         """
         Generate a new outside arrival using arrival_prob.
 
-        A successful arrival enters immediately when possible.  Otherwise the
+        A successful arrival enters immediately when possible. Otherwise the
         vehicle is stored in the outside waiting queue and can enter later.
         """
         if self.rng.random() >= self.arrival_prob:
             return False
 
         car = self._new_vehicle()
+        car.arrival_time = self.time
 
         if self._can_enter_now() and not self.waiting_queue:
             self._place_car_at_entrance(car)
@@ -227,6 +252,27 @@ class ParkingModel:
                 car.state = "DONE"
                 car.spot_idx = None
 
+    def _record_successful_parking(self, car):
+        """Store waiting-time measurements for a car that has successfully parked."""
+        if car.arrival_time is None or car.entry_time is None or car.parked_time is None:
+            return
+
+        outside_waiting_time = car.entry_time - car.arrival_time
+        parking_search_time = car.parked_time - car.entry_time
+        total_waiting_time = car.parked_time - car.arrival_time
+
+        self.parking_results.append(
+            {
+                "vid": car.vid,
+                "arrival_time": car.arrival_time,
+                "entry_time": car.entry_time,
+                "parked_time": car.parked_time,
+                "parking_search_time": parking_search_time,
+                "outside_waiting_time": outside_waiting_time,
+                "total_waiting_time": total_waiting_time,
+            }
+        )
+
     def _progress_parking_manoeuvres(self):
         """
         Continue cars that are already parking.
@@ -257,7 +303,10 @@ class ParkingModel:
 
             car.state = "PARKED"
             car.road_pos = None
+            car.parked_time = self.time
             car.parked_timer = self._sample_parking_duration()
+
+            self._record_successful_parking(car)
 
     def _start_parking_manoeuvres(self):
         """
@@ -323,6 +372,14 @@ class ParkingModel:
                     blocked_positions.add(pos)
                     changed = True
 
+        # Record how many SEARCHING cars were held up by parking manoeuvres.
+        self.current_blocked_count = sum(
+            1
+            for pos, vid in occupied.items()
+            if self.vehicles[vid].state == "SEARCHING"
+            and pos in blocked_positions
+        )
+
         # Build the next road state separately so update order does not matter.
         new_road = [None] * self.road_length
 
@@ -352,6 +409,22 @@ class ParkingModel:
 
         self.road = new_road
 
+    def _record_step_result(self):
+        """Record the model measurements required at the end of each step."""
+        searching_inside = sum(
+            1 for car in self.vehicles.values() if car.state == "SEARCHING"
+        )
+
+        self.step_results.append(
+            {
+                "time": self.time,
+                "parking_occupancy": self._parking_occupancy(),
+                "searching_inside": searching_inside,
+                "waiting_outside": len(self.waiting_queue),
+                "blocked_by_parking": self.current_blocked_count,
+            }
+        )
+
     def step(self):
         """
         Advance the model by one simulation step.
@@ -362,7 +435,8 @@ class ParkingModel:
         3. searching cars beside empty spaces start parking;
         4. the remaining searching cars move;
         5. the first outside waiting car may enter;
-        6. a new arrival may be generated using arrival_prob.
+        6. a new arrival may be generated using arrival_prob;
+        7. record the model state for this completed step.
 
         Waiting cars are given priority over a brand-new arrival.
         """
@@ -378,10 +452,43 @@ class ParkingModel:
         self._generate_arrival()
 
         self.time += 1
+        self._record_step_result()
+
+    def summary(self):
+        """Return a readable summary of the main experiment results."""
+        if self.parking_results:
+            mean_search_time = sum(
+                result["parking_search_time"] for result in self.parking_results
+            ) / len(self.parking_results)
+
+            mean_total_waiting_time = sum(
+                result["total_waiting_time"] for result in self.parking_results
+            ) / len(self.parking_results)
+        else:
+            mean_search_time = 0.0
+            mean_total_waiting_time = 0.0
+
+        if self.step_results:
+            searching_counts = [
+                result["searching_inside"] for result in self.step_results
+            ]
+            mean_searching_cars = sum(searching_counts) / len(searching_counts)
+            max_searching_cars = max(searching_counts)
+        else:
+            mean_searching_cars = 0.0
+            max_searching_cars = 0
+
+        return {
+            "mean_search_time": mean_search_time,
+            "mean_total_waiting_time": mean_total_waiting_time,
+            "mean_searching_cars": mean_searching_cars,
+            "max_searching_cars": max_searching_cars,
+            "successful_parking_count": len(self.parking_results),
+        }
 
     def run(self, steps=100, add_car_every=None):
         """
-        Run several model steps.
+        Run several model steps and return the main result summary.
 
         arrival_prob is the experiment variable used for random arrivals.
 
@@ -395,6 +502,8 @@ class ParkingModel:
                 self.add_car_at_entrance()
 
             self.step()
+
+        return self.summary()
 
     def road_as_text(self):
         """
