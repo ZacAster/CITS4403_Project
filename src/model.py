@@ -7,16 +7,13 @@ Already implemented here:
 - searching-car movement
 - two-step parking manoeuvres
 - temporary blocking behind a parking car
-- parked cars leaving after a fixed placeholder duration
-
-Not implemented yet on purpose:
+- parked cars leaving after a configurable stochastic duration
 - random/configurable arrival rate
-- configurable/stochastic parking duration
 - outside waiting queue
 - entry control
-- measurements and experiment summaries
 
-Those are separate GitHub tasks for the next development stage.
+Still to be added in later development tasks:
+- measurements and experiment summaries
 """
 
 from dataclasses import dataclass
@@ -29,10 +26,10 @@ BASELINE_PARKING_DURATION = 12
 
 @dataclass
 class Vehicle:
-    """Information needed for one car in the baseline model."""
+    """Information needed for one car in the parking model."""
 
     vid: int
-    state: str = "SEARCHING"   # SEARCHING -> PARKING -> PARKED -> DONE
+    state: str = "SEARCHING"   # WAITING -> SEARCHING -> PARKING -> PARKED -> DONE
     road_pos: Optional[int] = None
     spot_idx: Optional[int] = None
     parking_timer: int = 0
@@ -48,6 +45,10 @@ class ParkingModel:
         n_spaces=12,
         initial_occupancy=0.75,
         parking_manoeuvre_steps=2,
+        arrival_prob=0.0,
+        mean_parking_duration=BASELINE_PARKING_DURATION,
+        entry_control=False,
+        entry_threshold=0.9,
         seed=None,
     ):
         if not (0 < n_spaces <= road_length):
@@ -56,10 +57,27 @@ class ParkingModel:
             raise ValueError("initial_occupancy must be between 0 and 1")
         if parking_manoeuvre_steps < 1:
             raise ValueError("parking_manoeuvre_steps must be at least 1")
+        if not (0 <= arrival_prob <= 1):
+            raise ValueError("arrival_prob must be between 0 and 1")
+        if mean_parking_duration <= 0:
+            raise ValueError("mean_parking_duration must be greater than 0")
+        if not (0 <= entry_threshold <= 1):
+            raise ValueError("entry_threshold must be between 0 and 1")
 
         self.road_length = road_length
         self.n_spaces = n_spaces
         self.parking_manoeuvre_steps = parking_manoeuvre_steps
+
+        # Experiment settings.  These can be changed when the model is created
+        # without changing any of the movement code below.
+        self.arrival_prob = arrival_prob
+        self.mean_parking_duration = mean_parking_duration
+        self.entry_control = entry_control
+        self.entry_threshold = entry_threshold
+
+        # Cars that arrive but cannot currently enter wait here in FIFO order.
+        self.waiting_queue = []
+
         self.rng = np.random.default_rng(seed)
 
         # Put parking spaces at roughly even positions around the loop.
@@ -89,8 +107,15 @@ class ParkingModel:
                 car = self._new_vehicle()
                 car.state = "PARKED"
                 car.spot_idx = int(spot_idx)
-                car.parked_timer = BASELINE_PARKING_DURATION
+                car.parked_timer = self._sample_parking_duration()
                 self.spots[int(spot_idx)] = car.vid
+
+    def _sample_parking_duration(self):
+        """Return a random positive parking duration with the configured mean."""
+        return max(
+            1,
+            int(round(self.rng.exponential(self.mean_parking_duration)))
+        )
 
     def _new_vehicle(self):
         """Create one car with a unique ID."""
@@ -99,31 +124,96 @@ class ParkingModel:
         self.next_vid += 1
         return car
 
-    def add_car_at_entrance(self):
+    def _parking_occupancy(self):
+        """Return the fraction of parking spaces that are currently occupied."""
+        occupied_spaces = sum(vid is not None for vid in self.spots)
+        return occupied_spaces / self.n_spaces
+
+    def _entry_allowed(self):
         """
-        Add one new searching car at road position 0.
+        Return True when the entry-control rule allows a car to enter.
 
-        This is only a simple baseline arrival method.
-        If the entrance is occupied, no car is added.
-
-        A later GitHub task will replace this with a configurable random arrival
-        process and an outside waiting queue.
+        When entry control is off, occupancy does not restrict entry.
+        When it is on, entry is stopped once parking occupancy reaches the
+        configured threshold.
         """
-        if self.road[0] is not None:
-            return False
+        if not self.entry_control:
+            return True
 
-        car = self._new_vehicle()
+        return self._parking_occupancy() < self.entry_threshold
+
+    def _can_enter_now(self):
+        """Return True when both the entrance and entry-control rule allow entry."""
+        return self.road[0] is None and self._entry_allowed()
+
+    def _place_car_at_entrance(self, car):
+        """Place an existing vehicle at road position 0 as a searching car."""
         car.state = "SEARCHING"
         car.road_pos = 0
         self.road[0] = car.vid
+
+    def add_car_at_entrance(self):
+        """
+        Manually add one new searching car at road position 0.
+
+        This helper is kept for the baseline demo and existing tests.  It now
+        also respects entry control.  If the entrance or entry-control rule
+        blocks entry, no manual car is created and False is returned.
+
+        Experiment arrivals are handled separately by _generate_arrival(),
+        which stores blocked arrivals in the outside waiting queue.
+        """
+        if not self._can_enter_now():
+            return False
+
+        car = self._new_vehicle()
+        self._place_car_at_entrance(car)
+        return True
+
+    def _generate_arrival(self):
+        """
+        Generate a new outside arrival using arrival_prob.
+
+        A successful arrival enters immediately when possible.  Otherwise the
+        vehicle is stored in the outside waiting queue and can enter later.
+        """
+        if self.rng.random() >= self.arrival_prob:
+            return False
+
+        car = self._new_vehicle()
+
+        if self._can_enter_now() and not self.waiting_queue:
+            self._place_car_at_entrance(car)
+        else:
+            car.state = "WAITING"
+            car.road_pos = None
+            self.waiting_queue.append(car.vid)
+
+        return True
+
+    def _admit_waiting_car(self):
+        """
+        Let the first waiting car enter when the entrance and control rule allow.
+
+        Only one car can enter per simulation step because there is one entrance.
+        """
+        if not self.waiting_queue:
+            return False
+
+        if not self._can_enter_now():
+            return False
+
+        vid = self.waiting_queue.pop(0)
+        car = self.vehicles[vid]
+        self._place_car_at_entrance(car)
         return True
 
     def _update_parked_cars(self):
         """
         Count down parked cars and free spaces when the timer reaches zero.
 
-        The fixed timer is only a placeholder for the baseline model.
-        Later it will be replaced with a configurable/stochastic parking duration.
+        Each car receives a stochastic duration sampled from
+        mean_parking_duration when it becomes parked.
         """
         for spot_idx, vid in enumerate(list(self.spots)):
             if vid is None:
@@ -167,7 +257,7 @@ class ParkingModel:
 
             car.state = "PARKED"
             car.road_pos = None
-            car.parked_timer = BASELINE_PARKING_DURATION
+            car.parked_timer = self._sample_parking_duration()
 
     def _start_parking_manoeuvres(self):
         """
@@ -264,30 +354,41 @@ class ParkingModel:
 
     def step(self):
         """
-        Advance the baseline model by one simulation step.
+        Advance the model by one simulation step.
 
         Update order:
         1. parked cars count down and may leave;
         2. cars already parking continue/finish parking;
         3. searching cars beside empty spaces start parking;
-        4. the remaining searching cars move.
+        4. the remaining searching cars move;
+        5. the first outside waiting car may enter;
+        6. a new arrival may be generated using arrival_prob.
 
-        New arrivals are currently added manually with add_car_at_entrance().
+        Waiting cars are given priority over a brand-new arrival.
         """
         self._update_parked_cars()
         self._progress_parking_manoeuvres()
         self._start_parking_manoeuvres()
         self._move_searching_cars()
+
+        # Existing waiting cars get the first chance to use the entrance.
+        self._admit_waiting_car()
+
+        # Then generate this step's possible new outside arrival.
+        self._generate_arrival()
+
         self.time += 1
 
     def run(self, steps=100, add_car_every=None):
         """
-        Run several baseline steps.
+        Run several model steps.
 
-        add_car_every is only a demo helper.
-        Example: add_car_every=4 attempts to add one car every 4 steps.
+        arrival_prob is the experiment variable used for random arrivals.
 
-        It is NOT the final arrival-rate experiment variable.
+        add_car_every is kept only as a backwards-compatible demo helper.
+        Example: add_car_every=4 also attempts a manual car every 4 steps.
+        For experiments, normally leave add_car_every as None and set
+        arrival_prob instead.
         """
         for _ in range(steps):
             if add_car_every and self.time % add_car_every == 0:
