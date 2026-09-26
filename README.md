@@ -4,7 +4,7 @@
 
 We are studying parking-search congestion in a busy campus-style car park.
 
-The model is intentionally simple. It is not meant to copy one exact UWA car park. We keep the parts that matter for our research question: cars arriving, driving around looking for a space, temporarily blocking cars behind while parking, staying parked for some time, and eventually leaving.
+The model is intentionally simple. The parts that matter for our research question: cars arriving, driving around looking for a space, temporarily blocking cars behind while parking, staying parked for some time, and eventually leaving.
 
 ## Research questions
 
@@ -106,7 +106,6 @@ These parts are left for the next development tasks:
 - full parameter sweep;
 - final Checkpoint 2 plots.
 
-This is intentional so the remaining work can be completed through GitHub issues and pull requests.
 
 ## Planned experimental variables
 
@@ -140,24 +139,6 @@ Example of searching that stays high:
 2 -> 5 -> 8 -> 11 -> 13 -> 12 -> 15 ...
 ```
 
-We do **not** assume in advance that a sharp tipping point exists. The experiments will show whether the model produces a clear transition.
-
-## How this differs from the Week 9 traffic-jam example
-
-The Week 9 example studies cars travelling on a highway.
-
-Our project is about **parking search** in a finite-capacity car park.
-
-Our model includes:
-
-- limited parking spaces;
-- cars circulating specifically to find parking;
-- parking spaces becoming occupied and later becoming free again;
-- a parking manoeuvre that temporarily blocks following cars;
-- later addition of an entry-control policy;
-- comparison of internal searching with outside waiting.
-
-The lecture traffic model is useful as a reference for simple vehicle movement, but the research question and main model behaviour are different.
 
 ## Current Checkpoint 2 goal
 
