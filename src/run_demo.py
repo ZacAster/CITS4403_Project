@@ -1,8 +1,8 @@
 """
 Small baseline demo.
 
-This only demonstrates the movement/parking code that is already implemented.
-It does not contain the final experiment parameters or measurements.
+This deliberately demonstrates the basic movement/parking behaviour in a simple way.
+Formal parameter experiments are run from src/experiments.py.
 """
 
 from src.model import ParkingModel
@@ -20,7 +20,7 @@ def main():
     print()
 
     # Baseline demo only: try to add one car every 3 steps.
-    # Later this will be replaced by the real arrival-rate code.
+    # Formal experiments use arrival_prob; this regular arrival is only for an easy-to-read demo.
     for _ in range(30):
         if model.time % 3 == 0:
             model.add_car_at_entrance()
