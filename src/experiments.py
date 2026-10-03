@@ -1,352 +1,540 @@
 """
-Initial parameter experiments for the parking-search ABM.
+Checkpoint 2 experiment for the parking-search ABM.
 
-This file is the main implementation for Issue 4.
+Main idea:
+The total number of arriving cars can stay the same, but the cars can arrive
+in different time patterns. A small arrival window means the cars are more
+synchronised (many cars arrive close together). A large arrival window means
+the same cars are spread out more evenly.
 
-The model itself is defined in src/model.py.  Here we:
-1. run one parameter condition;
-2. calculate extra analysis metrics for persistent search congestion;
-3. repeat conditions across several random seeds;
-4. save raw and aggregated CSV files.
+This lets us study timetable-driven arrival burstiness without changing the
+basic parking model in src/model.py.
 
-The parameter values below are exploratory model values for Checkpoint 2.
-They are not claimed to be measured UWA traffic or parking data.
+The values in this file are exploratory model values. They are not claimed to
+be measured UWA parking data.
 """
 
-from __future__ import annotations
-
-import csv
-import math
+# We use Path so the CSV files can be saved with simple folder paths.
 from pathlib import Path
-from statistics import mean, pstdev
-from typing import Iterable
 
+# csv is used to write the raw results and the averaged results.
+import csv
+
+# math is only used for NaN when a mean cannot be calculated.
+import math
+
+# mean and pstdev make it easy to average repeated random seeds.
+from statistics import mean, pstdev
+
+# ParkingModel is the model written in src/model.py.
 from src.model import ParkingModel
 
 
-# Fixed model structure used for the first Checkpoint 2 experiment.
+# -----------------------------
+# Basic car-park settings
+# -----------------------------
+
+# The loop road has 30 road positions.
 ROAD_LENGTH = 30
+
+# The car park has 12 parking spaces.
 N_SPACES = 12
+
+# The car park starts at 75% occupancy for the main experiment.
 INITIAL_OCCUPANCY = 0.75
+
+# A parking manoeuvre blocks the road for two simulation steps.
 PARKING_MANOEUVRE_STEPS = 2
 
-# First exploratory parameter grid.
-ARRIVAL_PROBS = (0.10, 0.30, 0.50)
-MEAN_PARKING_DURATIONS = (10, 20, 30)
+# Entry control is not used in the main burstiness experiment.
+# We keep it off so the arrival timing effect is easier to see.
+ENTRY_CONTROL = False
 
-# Compare no policy with one simple occupancy-based threshold.
-ENTRY_CONTROL_CASES = (
-    (False, 0.80),
-    (True, 0.80),
-)
+# -----------------------------
+# Arrival-burst experiment settings
+# -----------------------------
 
-DEFAULT_STEPS = 400
+# All arrival patterns are centred around the same simulation time.
+# This represents cars arriving around one class-start period.
+ARRIVAL_CENTER = 40
+
+# These are the numbers of new cars used in the experiment.
+# Within each comparison, the total number of cars is kept the same.
+TOTAL_ARRIVALS_CASES = (12, 18, 24)
+
+# A smaller width means the same cars are packed into a shorter time window.
+# Width 10 is very bursty. Width 60 is much more spread out.
+BURST_WIDTHS = (10, 20, 40, 60)
+
+# This changes how quickly parked cars normally leave and free a space.
+MEAN_PARKING_DURATIONS = (15, 30, 60)
+
+# Every simulation runs long enough for the scheduled cars to finish parking.
+SIMULATION_STEPS = 300
+
+# We repeat every condition with 10 random seeds.
+# The randomness comes mainly from the stochastic parking durations.
 DEFAULT_SEEDS = tuple(range(10))
-LATE_FRACTION = 0.20
 
 
-def _safe_mean(values):
-    """Return the mean, or NaN if the list is empty."""
+# -----------------------------
+# Small helper functions
+# -----------------------------
+
+def build_arrival_times(total_arrivals, burst_width):
+    """
+    Create the exact arrival times for one scenario.
+
+    Example:
+    - total_arrivals = 24
+    - burst_width = 10
+
+    Then the 24 cars are squeezed into a 10-step window around ARRIVAL_CENTER.
+    Some simulation steps can therefore receive more than one outside arrival.
+
+    The total number of cars never changes when burst_width changes.
+    """
+
+    # The start time keeps every arrival pattern centred at ARRIVAL_CENTER.
+    start_time = ARRIVAL_CENTER - burst_width // 2
+
+    # This list will store one simulation time for each arriving car.
+    arrival_times = []
+
+    # If there is only one car, put it directly at the centre.
+    if total_arrivals == 1:
+        return [ARRIVAL_CENTER]
+
+    # Go through every arriving car.
+    for car_number in range(total_arrivals):
+        # Spread the car positions across the chosen arrival window.
+        # round() allows several cars to share the same step in a narrow burst.
+        position_in_window = round(
+            car_number * (burst_width - 1) / (total_arrivals - 1)
+        )
+
+        # Convert the position inside the window to an actual simulation time.
+        arrival_time = start_time + position_in_window
+
+        # Store this car's arrival time.
+        arrival_times.append(arrival_time)
+
+    # Return one time value for every scheduled car.
+    return arrival_times
+
+
+def build_arrival_counts(total_arrivals, burst_width):
+    """
+    Convert the arrival-time list into a dictionary.
+
+    Example output:
+    {35: 2, 36: 3, 37: 2, ...}
+
+    This means two cars arrive at step 35, three cars at step 36, and so on.
+    """
+
+    # Start with an empty dictionary.
+    counts = {}
+
+    # Reuse the arrival schedule made by build_arrival_times().
+    arrival_times = build_arrival_times(total_arrivals, burst_width)
+
+    # Count how many cars are scheduled for every simulation step.
+    for arrival_time in arrival_times:
+        counts[arrival_time] = counts.get(arrival_time, 0) + 1
+
+    # Return the finished step -> number-of-cars dictionary.
+    return counts
+
+
+def add_scheduled_arrival(model):
+    """
+    Add one externally scheduled car to the existing model.
+
+    The normal model uses a Bernoulli arrival probability. For this experiment
+    we need an exact number of cars, so we create the car ourselves.
+
+    The new car first joins the outside FIFO queue. The original model then
+    decides when the first waiting car can enter the road. This keeps the
+    existing one-entrance rule instead of bypassing it.
+    """
+
+    # Create a new Vehicle object using the model's existing helper.
+    car = model._new_vehicle()
+
+    # Record the time at which this car reached the car park.
+    car.arrival_time = model.time
+
+    # The car starts outside the car park.
+    car.state = "WAITING"
+
+    # A waiting car has no road position yet.
+    car.road_pos = None
+
+    # Put the car at the end of the existing FIFO waiting queue.
+    model.waiting_queue.append(car.vid)
+
+    # Return the vehicle ID in case we want it later.
+    return car.vid
+
+
+def safe_mean(values):
+    """Return the mean, or NaN when the list is empty."""
+
+    # Convert the input to a list so it can be checked more than once.
     values = list(values)
-    return mean(values) if values else math.nan
+
+    # Return the normal mean when at least one value exists.
+    if values:
+        return mean(values)
+
+    # NaN is clearer than pretending an empty mean is zero.
+    return math.nan
 
 
-def analyse_model(model: ParkingModel, steps: int) -> dict:
-    """
-    Calculate experiment outcomes from one completed model run.
-
-    The most useful extra metric is late_mean_searching: the average number of
-    SEARCHING cars during the final 20% of the run.  This helps distinguish a
-    short temporary build-up from congestion that remains late in the run.
-
-    We deliberately keep it as a continuous indicator instead of declaring an
-    arbitrary binary 'tipping point'.
-    """
-    records = model.step_results
-
-    if not records:
-        raise ValueError("The model has no recorded steps.")
-
-    late_start = max(0, int(len(records) * (1.0 - LATE_FRACTION)))
-    late_records = records[late_start:]
-
-    searching = [r["searching_inside"] for r in records]
-    late_searching = [r["searching_inside"] for r in late_records]
-    waiting = [r["waiting_outside"] for r in records]
-    late_waiting = [r["waiting_outside"] for r in late_records]
-    occupancies = [r["parking_occupancy"] for r in records]
-    blocked = [r["blocked_by_parking"] for r in records]
-
-    parked_results = model.parking_results
-
-    # These means only use cars that successfully parked before the run ended.
-    # We therefore also report unfinished_vehicle_count and final queue sizes.
-    mean_search_time = _safe_mean(
-        r["parking_search_time"] for r in parked_results
-    )
-    mean_outside_waiting_time = _safe_mean(
-        r["outside_waiting_time"] for r in parked_results
-    )
-    mean_total_waiting_time = _safe_mean(
-        r["total_waiting_time"] for r in parked_results
-    )
-
-    state_counts = {
-        state: sum(1 for car in model.vehicles.values() if car.state == state)
-        for state in ("WAITING", "SEARCHING", "PARKING", "PARKED", "DONE")
-    }
-
-    initial_vehicle_count = round(INITIAL_OCCUPANCY * N_SPACES)
-    generated_arrivals = max(0, len(model.vehicles) - initial_vehicle_count)
-    successful = len(parked_results)
-
-    completion_fraction = (
-        successful / generated_arrivals if generated_arrivals else math.nan
-    )
-
-    return {
-        "steps": steps,
-        "mean_searching_cars": mean(searching),
-        "max_searching_cars": max(searching),
-        "late_mean_searching": mean(late_searching),
-        "search_clear_fraction": sum(x == 0 for x in searching) / len(searching),
-        "mean_waiting_outside": mean(waiting),
-        "late_mean_waiting_outside": mean(late_waiting),
-        "final_waiting_outside": records[-1]["waiting_outside"],
-        "mean_occupancy": mean(occupancies),
-        "mean_blocked_by_parking": mean(blocked),
-        "mean_search_time": mean_search_time,
-        "mean_outside_waiting_time": mean_outside_waiting_time,
-        "mean_total_waiting_time": mean_total_waiting_time,
-        "successful_parking_count": successful,
-        "generated_arrivals": generated_arrivals,
-        "completion_fraction": completion_fraction,
-        "unfinished_vehicle_count": (
-            state_counts["WAITING"]
-            + state_counts["SEARCHING"]
-            + state_counts["PARKING"]
-        ),
-        "final_searching": state_counts["SEARCHING"],
-        "final_parking_manoeuvre": state_counts["PARKING"],
-    }
-
+# -----------------------------
+# One simulation condition
+# -----------------------------
 
 def run_condition(
-    arrival_prob: float,
-    mean_parking_duration: float,
-    entry_control: bool,
-    entry_threshold: float = 0.80,
-    seed: int = 0,
-    steps: int = DEFAULT_STEPS,
-    return_model: bool = False,
+    burst_width,
+    total_arrivals,
+    mean_parking_duration,
+    seed=0,
+    return_model=False,
 ):
-    """Run one experimental condition and return its measurements."""
+    """
+    Run one timetable-burst condition.
+
+    The important comparison is that burst_width can change while
+    total_arrivals stays exactly the same.
+    """
+
+    # Create one copy of the existing parking model.
     model = ParkingModel(
         road_length=ROAD_LENGTH,
         n_spaces=N_SPACES,
         initial_occupancy=INITIAL_OCCUPANCY,
         parking_manoeuvre_steps=PARKING_MANOEUVRE_STEPS,
-        arrival_prob=arrival_prob,
+        # Automatic random arrivals are disabled because this experiment uses
+        # an exact arrival schedule instead.
+        arrival_prob=0.0,
         mean_parking_duration=mean_parking_duration,
-        entry_control=entry_control,
-        entry_threshold=entry_threshold,
+        entry_control=ENTRY_CONTROL,
         seed=seed,
     )
 
-    model.run(steps=steps)
+    # Remember how many vehicles existed before the scheduled arrivals start.
+    # These are the cars that were already parked at time zero.
+    initial_vehicle_count = len(model.vehicles)
 
+    # Make the timetable-driven arrival schedule for this condition.
+    arrival_counts = build_arrival_counts(total_arrivals, burst_width)
+
+    # Run the model one simulation step at a time.
+    for _ in range(SIMULATION_STEPS):
+        # Check how many outside arrivals should appear at the current time.
+        cars_arriving_now = arrival_counts.get(model.time, 0)
+
+        # Add every car scheduled for this time to the outside queue.
+        for _ in range(cars_arriving_now):
+            add_scheduled_arrival(model)
+
+        # Advance the original parking model by one step.
+        model.step()
+
+    # Select only the new cars created by this experiment.
+    # This avoids mixing them with the cars that were parked at time zero.
+    scheduled_cars = [
+        car
+        for car in model.vehicles.values()
+        if car.vid >= initial_vehicle_count
+    ]
+
+    # A successful car has reached a parking space at least once.
+    successful_cars = [
+        car for car in scheduled_cars if car.parked_time is not None
+    ]
+
+    # Calculate each successful car's total wait from arrival to parking.
+    waiting_times = [
+        car.parked_time - car.arrival_time
+        for car in successful_cars
+    ]
+
+    # Pull the recorded searching count from every simulation step.
+    searching_by_step = [
+        row["searching_inside"] for row in model.step_results
+    ]
+
+    # Pull the outside queue length from every simulation step.
+    outside_by_step = [
+        row["waiting_outside"] for row in model.step_results
+    ]
+
+    # Total backlog means cars searching inside plus cars waiting outside.
+    backlog_by_step = [
+        searching + outside
+        for searching, outside in zip(searching_by_step, outside_by_step)
+    ]
+
+    # Record how often cars are blocked by a parking manoeuvre.
+    blocked_by_step = [
+        row["blocked_by_parking"] for row in model.step_results
+    ]
+
+    # Record parking occupancy over time as an extra diagnostic value.
+    occupancy_by_step = [
+        row["parking_occupancy"] for row in model.step_results
+    ]
+
+    # Build one result row for this simulation run.
     result = {
+        # Store the input settings first so every result can be reproduced.
         "seed": seed,
-        "arrival_prob": arrival_prob,
+        "burst_width": burst_width,
+        "total_arrivals": total_arrivals,
         "mean_parking_duration": mean_parking_duration,
-        "entry_control": entry_control,
-        "entry_threshold": entry_threshold,
+        # Store the main outcomes used in the analysis.
+        "mean_total_waiting_time": safe_mean(waiting_times),
+        "max_total_waiting_time": max(waiting_times) if waiting_times else math.nan,
+        "peak_searching_inside": max(searching_by_step),
+        "peak_waiting_outside": max(outside_by_step),
+        "peak_total_backlog": max(backlog_by_step),
+        # This is the area under the backlog curve in car-steps.
+        # It captures both how high and how long the congestion lasts.
+        "cumulative_backlog": sum(backlog_by_step),
+        "mean_blocked_by_parking": mean(blocked_by_step),
+        "mean_occupancy": mean(occupancy_by_step),
+        # Check that the fixed number of scheduled cars actually parked.
+        "successful_parking_count": len(successful_cars),
+        "completion_fraction": len(successful_cars) / total_arrivals,
     }
-    result.update(analyse_model(model, steps))
 
+    # The notebook sometimes needs the full model for a time-series plot.
     if return_model:
         return result, model
 
+    # Normal experiment runs only need the result dictionary.
     return result
 
 
-def _csv_value(value):
-    """Write NaN as a blank cell so the CSV is easier to read."""
-    if isinstance(value, float) and math.isnan(value):
-        return ""
-    return value
+# -----------------------------
+# Repeated runs and CSV output
+# -----------------------------
 
+def aggregate_results(raw_rows):
+    """Average the repeated random seeds for every parameter condition."""
 
-def write_csv(rows: list[dict], path: Path):
-    """Write a list of dictionaries to CSV."""
-    if not rows:
-        raise ValueError("No rows to write.")
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-
-        for row in rows:
-            writer.writerow({k: _csv_value(v) for k, v in row.items()})
-
-
-def aggregate_results(raw_rows: list[dict]) -> list[dict]:
-    """Average repeated seeds for each parameter condition."""
-    metric_names = [
-        "mean_searching_cars",
-        "max_searching_cars",
-        "late_mean_searching",
-        "search_clear_fraction",
-        "mean_waiting_outside",
-        "late_mean_waiting_outside",
-        "final_waiting_outside",
-        "mean_occupancy",
-        "mean_blocked_by_parking",
-        "mean_search_time",
-        "mean_outside_waiting_time",
-        "mean_total_waiting_time",
-        "successful_parking_count",
-        "generated_arrivals",
-        "completion_fraction",
-        "unfinished_vehicle_count",
-        "final_searching",
-        "final_parking_manoeuvre",
-    ]
-
+    # Each dictionary key represents one unique experiment condition.
     groups = {}
 
+    # Put every raw run into its matching condition group.
     for row in raw_rows:
         key = (
-            row["arrival_prob"],
+            row["burst_width"],
+            row["total_arrivals"],
             row["mean_parking_duration"],
-            row["entry_control"],
-            row["entry_threshold"],
         )
+
+        # Create the group when we see the condition for the first time.
         groups.setdefault(key, []).append(row)
 
+    # These are the measurements that will get a mean and standard deviation.
+    metric_names = [
+        "mean_total_waiting_time",
+        "max_total_waiting_time",
+        "peak_searching_inside",
+        "peak_waiting_outside",
+        "peak_total_backlog",
+        "cumulative_backlog",
+        "mean_blocked_by_parking",
+        "mean_occupancy",
+        "successful_parking_count",
+        "completion_fraction",
+    ]
+
+    # This will hold one averaged row per condition.
     summary_rows = []
 
-    for key in sorted(groups, key=lambda x: (x[0], x[1], x[2])):
-        arrival_prob, duration, control, threshold = key
+    # Sort the conditions so the CSV is easy to read.
+    for key in sorted(groups):
+        # Unpack the three experiment variables.
+        burst_width, total_arrivals, duration = key
+
+        # Get all repeated seeds for this condition.
         group = groups[key]
 
+        # Start the summary row with the condition settings.
         summary = {
-            "arrival_prob": arrival_prob,
+            "burst_width": burst_width,
+            "total_arrivals": total_arrivals,
             "mean_parking_duration": duration,
-            "entry_control": control,
-            "entry_threshold": threshold,
             "n_seeds": len(group),
         }
 
+        # Calculate a mean and standard deviation for every output metric.
         for metric in metric_names:
+            # Keep only real numeric values and ignore NaN values.
             values = [
-                float(r[metric])
-                for r in group
+                float(row[metric])
+                for row in group
                 if not (
-                    isinstance(r[metric], float)
-                    and math.isnan(r[metric])
+                    isinstance(row[metric], float)
+                    and math.isnan(row[metric])
                 )
             ]
 
-            summary[f"{metric}_mean"] = _safe_mean(values)
-            summary[f"{metric}_sd"] = (
-                pstdev(values) if len(values) >= 2 else 0.0
-            )
+            # Save the average result across seeds.
+            summary[f"{metric}_mean"] = safe_mean(values)
 
+            # Use population standard deviation because these are repeated
+            # simulation runs of the same condition.
+            if len(values) >= 2:
+                summary[f"{metric}_sd"] = pstdev(values)
+            else:
+                summary[f"{metric}_sd"] = 0.0
+
+        # Add the finished condition row to the summary table.
         summary_rows.append(summary)
 
+    # Return all averaged conditions.
     return summary_rows
 
 
-def run_initial_sweep(
-    output_dir: str | Path = "data",
-    seeds: Iterable[int] = DEFAULT_SEEDS,
-    steps: int = DEFAULT_STEPS,
-):
+def write_csv(rows, path):
+    """Write a list of result dictionaries to a CSV file."""
+
+    # Do not create an empty CSV by mistake.
+    if not rows:
+        raise ValueError("No rows to write.")
+
+    # Convert the supplied path to a Path object.
+    path = Path(path)
+
+    # Create the data folder if it does not already exist.
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Open the CSV file for writing.
+    with path.open("w", newline="", encoding="utf-8") as file:
+        # Use the first dictionary's keys as the CSV column names.
+        writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()))
+
+        # Write the header row.
+        writer.writeheader()
+
+        # Write every experiment row underneath the header.
+        for row in rows:
+            writer.writerow(row)
+
+
+def run_burst_sweep(output_dir="data", seeds=DEFAULT_SEEDS):
     """
-    Run the first Checkpoint 2 parameter sweep.
+    Run the main Checkpoint 2 burstiness experiment.
 
     Grid:
-    - arrival probability: 0.10, 0.30, 0.50
-    - mean parking duration: 10, 20, 30 steps
-    - entry control: off / on at threshold 0.80
-    - 10 random seeds by default
+    - 4 burst widths
+    - 3 total-arrival levels
+    - 3 mean parking durations
+    - 10 random seeds
 
-    This gives 18 parameter conditions and 180 runs.
+    This gives 36 conditions and 360 runs by default.
     """
-    rows = []
 
-    for arrival_prob in ARRIVAL_PROBS:
-        for duration in MEAN_PARKING_DURATIONS:
-            for entry_control, threshold in ENTRY_CONTROL_CASES:
+    # Store every individual simulation run here.
+    raw_rows = []
+
+    # Try every arrival concentration.
+    for burst_width in BURST_WIDTHS:
+        # Try three total-demand levels.
+        for total_arrivals in TOTAL_ARRIVALS_CASES:
+            # Try three parking-turnover speeds.
+            for duration in MEAN_PARKING_DURATIONS:
+                # Repeat the same condition with several random seeds.
                 for seed in seeds:
-                    rows.append(
-                        run_condition(
-                            arrival_prob=arrival_prob,
-                            mean_parking_duration=duration,
-                            entry_control=entry_control,
-                            entry_threshold=threshold,
-                            seed=seed,
-                            steps=steps,
-                        )
+                    # Run the model once and save its result row.
+                    result = run_condition(
+                        burst_width=burst_width,
+                        total_arrivals=total_arrivals,
+                        mean_parking_duration=duration,
+                        seed=seed,
                     )
 
-    summary_rows = aggregate_results(rows)
+                    # Add the run to the full raw-results list.
+                    raw_rows.append(result)
 
+    # Average the repeated seeds for easier plotting and interpretation.
+    summary_rows = aggregate_results(raw_rows)
+
+    # Convert the output folder to a Path object.
     output_dir = Path(output_dir)
-    raw_path = output_dir / "initial_sweep_raw.csv"
-    summary_path = output_dir / "initial_sweep_summary.csv"
 
-    write_csv(rows, raw_path)
-    write_csv(summary_rows, summary_path)
+    # Save one row per simulation run.
+    write_csv(raw_rows, output_dir / "burst_sweep_raw.csv")
 
-    return rows, summary_rows
+    # Save one averaged row per parameter condition.
+    write_csv(summary_rows, output_dir / "burst_sweep_summary.csv")
+
+    # Return both tables so a notebook can use them immediately.
+    return raw_rows, summary_rows
 
 
-def _print_checkpoint_examples(summary_rows: list[dict]):
-    """Print a few easy-to-explain preliminary conditions."""
-    wanted = [
-        (0.10, 10, False),
-        (0.30, 20, False),
-        (0.50, 30, False),
-        (0.50, 30, True),
-    ]
+def print_checkpoint_examples(summary_rows):
+    """Print a few simple comparisons that are useful in a meeting."""
 
-    print("\nSelected preliminary conditions")
-    print("-" * 76)
-    print(
-        "arrival  duration  control   late-search   late-outside   total-wait"
-    )
+    # Compare the most bursty and most spread arrival patterns.
+    wanted_widths = (10, 60)
 
-    for arrival, duration, control in wanted:
-        row = next(
-            r
-            for r in summary_rows
-            if r["arrival_prob"] == arrival
-            and r["mean_parking_duration"] == duration
-            and r["entry_control"] == control
-        )
+    # Use the highest arrival count because the difference is easy to see.
+    wanted_arrivals = 24
 
-        print(
-            f"{arrival:>7.2f}"
-            f"{duration:>10}"
-            f"{str(control):>9}"
-            f"{row['late_mean_searching_mean']:>14.2f}"
-            f"{row['late_mean_waiting_outside_mean']:>15.2f}"
-            f"{row['mean_total_waiting_time_mean']:>13.2f}"
-        )
+    # Show all three parking-duration cases.
+    wanted_durations = (15, 30, 60)
+
+    # Print a small heading.
+    print("\nSame number of cars, different arrival concentration")
+    print("-" * 72)
+    print("width  arrivals  duration  mean-wait  peak-backlog  backlog-area")
+
+    # Print one line for every selected example condition.
+    for duration in wanted_durations:
+        for width in wanted_widths:
+            # Find the matching averaged row.
+            row = next(
+                row
+                for row in summary_rows
+                if row["burst_width"] == width
+                and row["total_arrivals"] == wanted_arrivals
+                and row["mean_parking_duration"] == duration
+            )
+
+            # Print the main measurements in an easy-to-read format.
+            print(
+                f"{width:>5}"
+                f"{wanted_arrivals:>10}"
+                f"{duration:>10}"
+                f"{row['mean_total_waiting_time_mean']:>11.2f}"
+                f"{row['peak_total_backlog_mean']:>14.2f}"
+                f"{row['cumulative_backlog_mean']:>14.2f}"
+            )
 
 
 def main():
-    _, summary_rows = run_initial_sweep()
+    """Run the full experiment when this file is executed as a module."""
+
+    # Run the 360 simulations and get the averaged results.
+    _, summary_rows = run_burst_sweep()
+
+    # Tell the user where the output files were written.
     print(
-        "Initial sweep complete: 18 conditions x 10 seeds = 180 runs.\n"
-        "Saved data/initial_sweep_raw.csv and data/initial_sweep_summary.csv."
+        "Burst experiment complete: 36 conditions x 10 seeds = 360 runs.\n"
+        "Saved data/burst_sweep_raw.csv and data/burst_sweep_summary.csv."
     )
-    _print_checkpoint_examples(summary_rows)
+
+    # Print a few easy-to-explain preliminary comparisons.
+    print_checkpoint_examples(summary_rows)
 
 
+# Only run main() when the file is executed directly with python -m.
 if __name__ == "__main__":
     main()
