@@ -6,11 +6,11 @@ We use an Agent-Based Model (ABM) to study parking-search congestion in a simpli
 
 Each car is one agent. Cars can arrive, wait outside, drive around the one-way loop, search for a parking space, perform a short parking manoeuvre, stay parked for a random duration, and later leave.
 
-## Main phenomenon for Checkpoint 2
+## Main phenomenon
 
 Our main focus is now **timetable-driven arrival burstiness / synchronisation**.
 
-The key idea is simple:
+The key idea is:
 
 - two scenarios can have the **same total number of arriving cars**;
 - in one scenario, the cars arrive close together before class;
@@ -19,14 +19,14 @@ The key idea is simple:
 
 ### Main research question
 
-**Can timetable-driven clustering of vehicle arrivals create much more parking-search congestion even when the total number of arriving cars is unchanged?**
+**How does the concentration of vehicle arrivals affect parking congestion when total demand is unchanged?**
 
 We also check how this effect changes when:
 
 1. the total number of arriving cars changes;
 2. the average parking duration changes.
 
-Entry control is already implemented in the model, but it is not the main Checkpoint 2 experiment. It can be studied later as a possible intervention.
+Entry control can be studied later as a possible intervention.
 
 ## Model structure
 
@@ -44,7 +44,7 @@ The current model has:
 
 The model is deliberately simplified and is not a copy of a specific UWA car park.
 
-## Checkpoint 2 burst experiment
+## Burst experiment
 
 The main sweep uses three experimental variables:
 
