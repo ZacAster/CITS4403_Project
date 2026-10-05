@@ -157,6 +157,12 @@ On Windows:
 python -m pytest -q
 ```
 
+## Run a single model demonstration
+
+```bash
+python -m src.run_demo
+```
+
 ## Run the burst experiment
 
 ```bash
