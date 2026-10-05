@@ -21,12 +21,26 @@ The key idea is:
 
 **How does the concentration of vehicle arrivals affect parking congestion when total demand is unchanged?**
 
+### Project aim and hypothesis
+
+The aim of this project is to determine whether concentrating the same parking demand into a shorter arrival period produces substantially greater parking-search congestion than spreading those arrivals over time.
+
+Our hypothesis is that, for the same total number of arriving vehicles, narrower arrival windows will produce higher peak congestion, larger backlogs, and longer waiting times because more vehicles compete for limited parking capacity at the same time.
+
+## Original contribution
+
+The main contribution of this project is the controlled comparison of different arrival-time concentration patterns while holding total vehicle demand constant.
+
+Rather than only increasing the number of vehicles to create congestion, the experiments investigate whether congestion can emerge because the same demand arrives in a more synchronised pattern. This allows the effect of arrival timing to be separated from the effect of total demand.
+
+The model also records both internal searching and external waiting, allowing congestion to be evaluated as a system-wide backlog rather than only as the number of vehicles circulating inside the car park.
+
 We also check how this effect changes when:
 
 1. the total number of arriving cars changes;
 2. the average parking duration changes.
 
-Entry control can be studied later as a possible intervention.
+The model also includes occupancy-based entry control, which can be used as a secondary intervention after establishing how arrival burstiness affects congestion.
 
 ## Model structure
 
@@ -62,6 +76,7 @@ width = 60  -> the same 24 cars are spread over a much longer period
 ```
 
 Every condition is repeated with 10 random seeds.
+Repeated random seeds are used to reduce the influence of individual stochastic outcomes and assess whether observed differences are consistent across runs.
 
 This gives:
 
@@ -80,6 +95,7 @@ The main measurements are:
 - completion fraction.
 
 `cumulative_backlog` is the sum of `searching_inside + waiting_outside` across all simulation steps. It gives one simple measure of both the size and duration of congestion.
+`completion_fraction` is the proportion of scheduled vehicles that complete their parking visit within the simulation horizon. It helps identify conditions where severe congestion prevents the system from clearing before the simulation ends.
 
 ## Preliminary Checkpoint 2 result
 
@@ -96,6 +112,9 @@ Arrival width 60:
 mean waiting time about 18.8 steps
 peak backlog about 8.2 cars
 ```
+These preliminary results suggest that arrival timing has a substantial effect even when total demand is unchanged. Concentrating the 24 arrivals into a 10-step window produced both a much larger peak backlog and a considerably higher mean waiting time than spreading the same 24 arrivals across 60 steps.
+
+This supports the hypothesis that synchronised arrivals can create short periods of demand that exceed the car park's ability to absorb vehicles, producing persistent searching and queueing. Final conclusions will be based on the complete parameter sweep and repeated runs rather than this single comparison.
 
 These are preliminary model results, not real UWA measurements.
 
