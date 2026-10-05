@@ -2,7 +2,7 @@
 
 ## 1. Research question
 
-**Primary:** Under what combinations of vehicle arrival rate, average parking duration, and entry-control threshold does a near-capacity car park develop persistent search congestion?
+**Primary:** Under what combinations of vehicle arrival rate, average parking duration, and arrival burstiness threshold does a near-capacity car park develop persistent search congestion?
 
 **Secondary:** Can entry control reduce or delay this congestion without mainly moving the waiting to the entrance?
 
@@ -22,7 +22,7 @@ Cars can:
 Main adjustable variables:
 - `arrival_prob`
 - `mean_parking_duration`
-- `entry_control`
+- `arrival_burstiness`
 - `entry_threshold`
 
 ## 3. What the first experiment does
