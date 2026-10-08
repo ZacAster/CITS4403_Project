@@ -267,20 +267,32 @@ def run_burst_sweep(
 
 
 def print_checkpoint_examples(summary_rows):
+    """Print waiting times together with parking-completion diagnostics."""
     print(
         "width  arrivals  duration  mean-wait  "
-        "peak-backlog  parking-completion"
+        "peak-backlog  completion  unfinished"
     )
 
     for row in summary_rows:
         if row["total_arrivals"] == 24 and row["burst_width"] in (10, 60):
             print(
-                f"{row['burst_width']:5} {row['total_arrivals']:9} "
-                f"{row['mean_parking_duration']:9} "
-                f"{row['mean_total_waiting_time_mean']:10.2f} "
-                f"{row['peak_total_backlog_mean']:13.2f} "
-                f"{row['completion_fraction_mean']:19.3f}"
+                f"{row['burst_width']:5}"
+                f"{row['total_arrivals']:10}"
+                f"{row['mean_parking_duration']:10}"
+                f"{row['mean_total_waiting_time_mean']:11.2f}"
+                f"{row['peak_total_backlog_mean']:14.2f}"
+                f"{row['completion_fraction_mean']:12.3f}"
+                f"{row['unfinished_parking_count_mean']:12.2f}"
             )
+
+    print(
+        "\nValues are averages across seeds. Waiting-time means include "
+        "only vehicles that successfully parked."
+    )
+    print(
+        "Completion means successful parking, not departure. "
+        "Interpret waiting times alongside completion and unfinished counts."
+    )
 
 
 def main():
