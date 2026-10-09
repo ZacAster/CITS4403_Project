@@ -26,7 +26,10 @@ def create_comparison(total_arrivals=24, duration=30, seed=3):
 
 
 def advance_to_step(models, schedules, target):
-    """Repeated drawing of a frame must not advance the simulation twice."""
+    """Advance each model forward to the requested step.
+    A target at or before a model's current time leaves that model
+    unchanged. This function does not rewind or reset the simulation.
+    """
     for model, schedule in zip(models, schedules):
         while model.time < target:
             step_scheduled_model(model, schedule)
