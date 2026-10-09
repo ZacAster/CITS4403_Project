@@ -1,198 +1,252 @@
-# CITS4403 Research Project - Parking Search Congestion
+# Parking Search Congestion under Synchronised Arrivals
 
-## Project idea
+## Project overview
 
-We use an Agent-Based Model (ABM) to study parking-search congestion in a simplified campus-style car park.
+This project uses an agent-based model to investigate parking-search
+congestion in a simplified campus-style car park.
 
-Each car is one agent. Cars can arrive, wait outside, drive around the one-way loop, search for a parking space, perform a short parking manoeuvre, stay parked for a random duration, and later leave.
+Vehicles arrive, wait outside when necessary, search along a one-way loop,
+perform a parking manoeuvre, occupy a space, and eventually leave.
 
-## Main phenomenon
+The main phenomenon is the build-up and clearance of congestion when the
+same total parking demand arrives over different time windows.
 
-Our main focus is now **timetable-driven arrival burstiness / synchronisation**.
+## Research question
 
-The key idea is:
+Under fixed total vehicle demand, how does arrival synchronisation affect
+waiting times and backlog in a parking system, and how does this effect
+vary with parking turnover?
 
-- two scenarios can have the **same total number of arriving cars**;
-- in one scenario, the cars arrive close together before class;
-- in the other scenario, the same cars are spread over a longer time;
-- we compare the parking-search congestion created by the two timing patterns.
+Within each comparison, total arrivals and other model settings are held
+constant while the arrival-window width changes.
 
-### Main research question
+## Aim and hypothesis
 
-**How does the concentration of vehicle arrivals affect parking congestion when total demand is unchanged?**
+We investigate the size and conditions of the arrival-timing effect.
 
-### Project aim and hypothesis
+Our hypothesis is that narrower arrival windows produce higher peak
+backlogs and longer waiting times, and that slower parking turnover can
+increase this effect.
 
-The aim of this project is to determine whether concentrating the same parking demand into a shorter arrival period produces substantially greater parking-search congestion than spreading those arrivals over time.
+This is a hypothesis to test rather than an assumption built into the
+reported conclusions.
 
-Our hypothesis is that, for the same total number of arriving vehicles, narrower arrival windows will produce higher peak congestion, larger backlogs, and longer waiting times because more vehicles compete for limited parking capacity at the same time.
+## Project contribution
 
-## Original contribution
+The investigation combines finite parking capacity, temporary blocking
+during parking manoeuvres, and an outside waiting queue.
 
-The main contribution of this project is the controlled comparison of different arrival-time concentration patterns while holding total vehicle demand constant.
+It compares arrival concentration at fixed total demand and examines its
+interaction with parking duration. Measuring both internal searching and
+external waiting helps distinguish overall congestion from a redistribution
+of vehicles between the road and the outside queue.
 
-Rather than only increasing the number of vehicles to create congestion, the experiments investigate whether congestion can emerge because the same demand arrives in a more synchronised pattern. This allows the effect of arrival timing to be separated from the effect of total demand.
+The project is inspired by campus arrival patterns, but it does not use
+measured university timetable or parking data.
 
-The model also records both internal searching and external waiting, allowing congestion to be evaluated as a system-wide backlog rather than only as the number of vehicles circulating inside the car park.
+## Model rules
 
-We also check how this effect changes when:
+The main experiment uses:
 
-1. the total number of arriving cars changes;
-2. the average parking duration changes.
-
-The model also includes occupancy-based entry control, which can be used as a secondary intervention after establishing how arrival burstiness affects congestion.
-
-## Model structure
-
-The current model has:
-
-- a one-way loop road;
-- 12 parking spaces in the main experiment;
-- cars searching for empty spaces;
+- 30 road positions arranged in a one-way loop;
+- 12 parking spaces;
+- 75% initial parking occupancy;
 - a two-step parking manoeuvre;
-- temporary blocking behind a parking car;
-- stochastic parking duration;
 - an outside FIFO waiting queue;
-- occupancy-based entry control;
-- per-step and per-car measurements.
+- at most one vehicle admitted through the entrance per step;
+- stochastic parking durations;
+- no occupancy-based entry control in the main sweep.
 
-The model is deliberately simplified and is not a copy of a specific UWA car park.
+Searching vehicles move simultaneously when the movement rule allows.
+A vehicle performing a parking manoeuvre can block vehicles behind it.
+Parked vehicles leave directly when their parking timer expires.
 
-## Burst experiment
+Parking durations are sampled from an exponential distribution, rounded
+to integer steps, and bounded below by one step. Therefore,
+`mean_parking_duration` is the exponential scale parameter; rounding means
+the realised discrete mean need not equal it exactly.
 
-The main sweep uses three experimental variables:
+For scheduled experiments, arrivals join the queue before each model step.
+The model then updates parked vehicles, progresses parking manoeuvres,
+starts new manoeuvres, moves searching vehicles, admits a waiting vehicle,
+and records the resulting state.
 
-- **arrival window width:** 10, 20, 40, 60 simulation steps;
-- **total arriving cars:** 12, 18, 24;
-- **mean parking duration:** 15, 30, 60 simulation steps.
+## Experimental design
 
-A smaller arrival window means the arrivals are more synchronised.
+The main parameter sweep uses:
 
-For example, with 24 total arrivals:
+| Parameter | Values |
+| --- | --- |
+| Arrival-window width | 10, 20, 40, 60 steps |
+| Total arriving vehicles | 12, 18, 24 |
+| Parking-duration parameter | 15, 30, 60 steps |
+| Random seeds | 0–9 |
+| Simulation horizon | 300 steps |
 
-```text
-width = 10  -> 24 cars arrive in a short burst
-width = 60  -> the same 24 cars are spread over a much longer period
-```
+This gives 36 conditions and 360 simulation runs.
 
-Every condition is repeated with 10 random seeds.
-Repeated random seeds are used to reduce the influence of individual stochastic outcomes and assess whether observed differences are consistent across runs.
+Arrival schedules are approximately centred around step 40. Narrower
+windows concentrate the same number of arrivals into fewer steps.
 
-This gives:
+Comparisons of arrival-window width hold total demand, parking duration,
+initial occupancy, layout and entry-control settings constant.
 
-```text
-4 burst widths x 3 arrival totals x 3 parking durations x 10 seeds
-= 360 simulation runs
-```
+Repeated seeds characterise variability. Using the same seed across
+different scenarios does not guarantee identical parking durations for
+each corresponding vehicle.
 
-The main measurements are:
+## Outcome measures
 
-- mean total waiting time;
-- peak searching cars;
-- peak outside queue;
-- peak total backlog;
-- cumulative backlog;
-- completion fraction.
+- `mean_total_waiting_time`: mean arrival-to-parking time among vehicles
+  that successfully park. It includes outside waiting, searching and the
+  parking manoeuvre.
+- `peak_total_backlog`: maximum searching-inside plus waiting-outside count.
+- `cumulative_backlog`: sum of that backlog across recorded steps, measured
+  in vehicle-steps.
+- `completion_fraction`: fraction of scheduled vehicles that successfully
+  park before the simulation ends. It does not require them to depart.
+- `unfinished_parking_count`: arrivals that have not successfully parked
+  by the end of the run.
+- `departed_count`: scheduled vehicles that have already departed.
+- `final_total_backlog`: searching plus waiting vehicles at the final step.
 
-`cumulative_backlog` is the sum of `searching_inside + waiting_outside` across all simulation steps. It gives one simple measure of both the size and duration of congestion.
-`completion_fraction` is the proportion of scheduled vehicles that complete their parking visit within the simulation horizon. It helps identify conditions where severe congestion prevents the system from clearing before the simulation ends.
+Backlog excludes vehicles currently performing a parking manoeuvre.
+Consequently, it is not identical to the number of all vehicles that have
+not yet completed parking.
 
-## Preliminary Checkpoint 2 result
+Waiting-time averages must be interpreted alongside completion and
+unfinished counts because they exclude vehicles that have not parked.
 
-For 24 total arrivals, the total demand is identical between the bursty and spread cases.
+## Baseline result
 
-With mean parking duration = 30:
+For 24 arrivals and a parking-duration parameter of 30, the existing
+10-seed baseline gives:
 
-```text
-Arrival width 10:
-mean waiting time about 46.0 steps
-peak backlog about 22.0 cars
+| Arrival width | Mean waiting time, mean ± SD | Peak backlog, mean ± SD |
+| --- | --- | --- |
+| 10 | 46.04 ± 7.17 steps | 22.00 ± 0.63 vehicles |
+| 60 | 18.83 ± 3.75 steps | 8.20 ± 1.25 vehicles |
 
-Arrival width 60:
-mean waiting time about 18.8 steps
-peak backlog about 8.2 cars
-```
-These preliminary results suggest that arrival timing has a substantial effect even when total demand is unchanged. Concentrating the 24 arrivals into a 10-step window produced both a much larger peak backlog and a considerably higher mean waiting time than spreading the same 24 arrivals across 60 steps.
+The standard deviations describe variation across the ten runs; they are
+not confidence intervals.
 
-This supports the hypothesis that synchronised arrivals can create short periods of demand that exceed the car park's ability to absorb vehicles, producing persistent searching and queueing. Final conclusions will be based on the complete parameter sweep and repeated runs rather than this single comparison.
+All scheduled vehicles successfully parked within 300 steps in the
+baseline 360-run sweep. This does not guarantee completion for other
+parameters or seeds.
 
-These are preliminary model results, not real UWA measurements.
-
-## Repository structure
-
-```text
-project-root/
-├── src/
-│   ├── model.py
-│   ├── experiments.py
-│   └── run_demo.py
-├── tests/
-├── utils/
-│   └── plots.py
-├── data/
-├── figures/
-├── notebooks/
-├── docs/
-├── requirements.txt
-└── README.md
-```
+These results describe the model and are not calibrated predictions for
+a real car park.
 
 ## Setup
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
 ```
 
-On Windows:
+Activate the environment:
 
 ```bash
+# macOS / Linux
+source .venv/bin/activate
+
+# Windows
 .venv\Scripts\activate
 ```
 
-## Run the tests
+Install dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+## Tests
 
 ```bash
 python -m pytest -q
 ```
 
-## Run a single model demonstration
+## Text demonstration
 
 ```bash
 python -m src.run_demo
 ```
 
-## Run the burst experiment
+## Live comparison
+
+```bash
+python -m src.animate_model
+```
+
+The animation compares width 10 with width 60 using 24 arrivals in each
+scenario. Both simulations advance on the same clock.
+
+Press Space to pause or resume. Close the window and rerun the command
+to restart.
+
+Example settings:
+
+```bash
+python -m src.animate_model --arrivals 24 --duration 60 --seed 3
+```
+
+Run this on a machine with a graphical Matplotlib backend.
+Frame interval controls playback speed, not simulated vehicle speed.
+
+## Main experiment
 
 ```bash
 python -m src.experiments
 ```
 
-This creates:
+This regenerates:
 
-```text
-data/burst_sweep_raw.csv
-data/burst_sweep_summary.csv
+- `data/burst_sweep_raw.csv`
+- `data/burst_sweep_summary.csv`
+
+The summary includes per-metric means, descriptive standard deviations
+and valid-run counts.
+
+## Optional entry-control experiment
+
+```bash
+python -m utils.run_threshold_sensitivity
 ```
 
-## Open the Checkpoint 2 notebook
+This compares entry-control settings for a fixed burst scenario and writes
+separate `burst_threshold_raw.csv` and `burst_threshold_summary.csv` files.
+
+It is a secondary analysis, not part of the main 360-run sweep.
+
+## Notebook
 
 ```bash
 jupyter notebook
 ```
 
-Then open:
+Open `notebooks/checkpoint2.ipynb` to inspect arrival schedules, example
+trajectories, heatmaps and parking-duration comparisons.
 
-```text
-notebooks/checkpoint2.ipynb
-```
+After regenerating experiment data or changing plotting functions,
+restart the notebook kernel and run all cells.
 
-## Current limitations
+## Limitations
 
-- Simulation steps are not calibrated to real minutes.
-- The car park layout is simplified.
-- Parking duration uses an exponential distribution as a modelling assumption.
-- The burst schedules are exploratory and are not measured UWA timetable traffic data.
-- Departing parked cars leave the model immediately instead of merging back into the road.
-- The main experiment uses scheduled arrivals so that every compared condition can have exactly the same number of arriving cars.
+The road geometry, movement rules and parking behaviour are simplified.
+Simulation steps are not calibrated to real minutes.
+
+The entrance admits at most one vehicle per step. A concentrated arrival
+schedule can therefore create an outside queue even before parking-space
+availability becomes the limiting factor.
+
+Initial occupants can depart before or during the arrival window. The
+results describe a transient arrival event rather than a stationary system.
+
+Backlog excludes parking manoeuvres, whereas arrival-to-parking waiting
+time includes them.
+
+Departing vehicles disappear from their spaces without rejoining the road.
+There are no alternative parking destinations or driver route choices.
+
+Further sensitivity checks can vary initial occupancy and simulation
+horizon. Claims about sharp tipping points or real-world interventions
+require additional evidence.
