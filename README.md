@@ -134,9 +134,6 @@ All scheduled vehicles successfully parked within 300 steps in the
 baseline 360-run sweep. This does not guarantee completion for other
 parameters or seeds.
 
-These results describe the model and are not calibrated predictions for
-a real car park.
-
 ## Setup
 
 ```bash
@@ -292,8 +289,9 @@ This demonstrates the basic parking-search model.
 python -m src.experiments
 ```
 
-These experiments compare different arrival concentration
-scenarios while keeping total scheduled demand fixed.
+The sweep tests 12, 18 and 24 total arrivals. Within each comparison
+of arrival-window widths, total arrivals and the other settings are 
+unchangeable.
 
 ### 5. Examine experiment results
 
