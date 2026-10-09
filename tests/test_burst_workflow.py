@@ -1,5 +1,6 @@
 """Checks for fixed demand, incomplete parking and animation consistency."""
 import pytest
+from copy import deepcopy
 from src.experiments import (
     aggregate_results,
     build_arrival_times,
@@ -107,3 +108,29 @@ def test_animation_matches_experiment():
         assert model.parking_results == expected.parking_results
         assert model.vehicles == expected.vehicles
         assert result["arrived_count"] == 24
+
+def test_earlier_target_leaves_model_state_unchanged():
+    models, schedules = create_comparison()
+    advance_to_step(models, schedules, 40)
+
+    def snapshot(model):
+        return deepcopy({
+            "time": model.time,
+            "road": model.road,
+            "spots": model.spots,
+            "waiting_queue": model.waiting_queue,
+            "vehicles": model.vehicles,
+            "next_vid": model.next_vid,
+            "step_results": model.step_results,
+            "parking_results": model.parking_results,
+            "blocked_count": model.current_blocked_count,
+            "rng_state": model.rng.bit_generator.state,
+        })
+
+    before = [snapshot(model) for model in models]
+
+    # Request an earlier frame after both models have reached step 40.
+    advance_to_step(models, schedules, 20)
+
+    assert [model.time for model in models] == [40, 40]
+    assert [snapshot(model) for model in models] == before
