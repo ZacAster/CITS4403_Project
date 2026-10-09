@@ -24,9 +24,3 @@ Optional entry-control results are generated with:
 
 These are saved as `burst_threshold_raw.csv` and
 `burst_threshold_summary.csv`.
-
-The older `threshold_sensitivity_results.csv` belongs to a previous
-experimental workflow and must not be treated as output of the current
-fixed-demand threshold experiment.
-
-These files contain simulation outputs, not observed campus parking data.
