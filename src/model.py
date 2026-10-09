@@ -465,8 +465,9 @@ class ParkingModel:
                 result["total_waiting_time"] for result in self.parking_results
             ) / len(self.parking_results)
         else:
-            mean_search_time = 0.0
-            mean_total_waiting_time = 0.0
+            mean_search_time = float("nan")
+            mean_total_waiting_time = float("nan")
+
 
         if self.step_results:
             searching_counts = [

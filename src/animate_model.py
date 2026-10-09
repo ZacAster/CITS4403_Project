@@ -124,17 +124,16 @@ def main():
     def on_key(event):
         nonlocal paused
 
-        if event.key == " ":
-            paused = not paused
+        # Ignore other keys and space presses after playback has finished
+        if event.key != " " or animation.event_source is None:
+            return
 
-            if paused:
-                animation.pause()
-            else:
-                animation.resume()
+        paused = not paused
 
-    fig.canvas.mpl_connect("key_press_event", on_key)
-
-    plt.show()
+        if paused:
+            animation.pause()
+        else:
+            animation.resume()
 
 
 if __name__ == "__main__":
