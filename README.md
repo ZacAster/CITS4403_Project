@@ -95,7 +95,8 @@ The main measurements are:
 - completion fraction.
 
 `cumulative_backlog` is the sum of `searching_inside + waiting_outside` across all simulation steps. It gives one simple measure of both the size and duration of congestion.
-`completion_fraction` is the proportion of scheduled vehicles that complete their parking visit within the simulation horizon. It helps identify conditions where severe congestion prevents the system from clearing before the simulation ends.
+
+`completion_fraction` is proportion of scheduled arriving vehicles that successfully reach the parked state before the simulation ends, whether or not they have subsequently departed. A vehicle is counted as completed once it has successfully parked; it does not need to finish its parking duration or leave the car park.
 
 ## Preliminary Checkpoint 2 result
 
