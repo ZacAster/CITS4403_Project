@@ -247,6 +247,88 @@ time includes them.
 Departing vehicles disappear from their spaces without rejoining the road.
 There are no alternative parking destinations or driver route choices.
 
-Further sensitivity checks can vary initial occupancy and simulation
-horizon. Claims about sharp tipping points or real-world interventions
-require additional evidence.
+- Simulation steps are not calibrated to real minutes.
+- The car park layout is simplified.
+- Parking duration uses an exponential distribution as a modelling assumption.
+- The burst schedules are exploratory and are not measured UWA timetable traffic data.
+- Departing parked cars leave the model immediately instead of merging back into the road.
+- The main experiment uses scheduled arrivals so that every compared condition can have exactly the same number of arriving cars.
+
+
+
+## Reproducing the experiment results
+
+This project investigates whether concentrating the same number
+of arriving cars into shorter time windows increases parking-search
+congestion.
+
+### 1. Set up the environment
+
+Create a Python virtual environment and install the dependencies
+using the Setup instructions above.
+
+### 2. Verify the implementation
+
+Run the complete automated test suite:
+
+```bash
+python -m pytest -v
+```
+
+The tests check parking movement, queue admission, parking
+capacity, vehicle conservation, and experiment behaviour.
+
+### 3. Run the baseline demonstration
+
+```bash
+python -m src.run_demo
+```
+
+This demonstrates the basic parking-search model.
+
+### 4. Run the burst-arrival experiments
+
+```bash
+python -m src.experiments
+```
+
+These experiments compare different arrival concentration
+scenarios while keeping total scheduled demand fixed.
+
+### 5. Examine experiment results
+
+Inspect the generated CSV files in the `data/` folder.
+
+Relevant measures include:
+
+- Mean total waiting time
+- Parking completion fraction
+- Unfinished parking count
+- Vehicle backlog
+- Parking occupancy
+
+When comparing mean waiting times, consider the completion
+fraction and unfinished parking count as well. Waiting-time
+averages based only on successfully parked cars may understate
+congestion when many cars remain unfinished.
+
+### 6. Reproducibility considerations
+
+For meaningful comparisons:
+
+- Keep total scheduled arrivals equal between scenarios.
+- Use the same model parameters across comparisons.
+- Use controlled random seeds.
+- Record arrival-window widths and simulation duration.
+- Include repeated runs to capture variability.
+- Report both completed and unfinished parking attempts.
+
+### 7. Current limitations
+
+The car park layout is simplified, and simulation steps are
+not calibrated to real-world minutes. Parking duration is
+modelled using an exponential distribution. The results
+should therefore be interpreted as comparisons within
+the simulated system rather than direct predictions for
+a real campus car park.
+
