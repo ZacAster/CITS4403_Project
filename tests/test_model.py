@@ -1,15 +1,9 @@
-"""
-Tests for the baseline movement and parking rules that are already implemented.
-
-More tests should be added later when the partner features are implemented
-(entry control, waiting queue, measurements, configurable parking duration).
-"""
-
+"""Tests for simultaneous movement, parking blockage, and manoeuvre duration."""
 from src.model import ParkingModel
 
 
 def empty_model():
-    """Create a small empty model with no automatic arrivals."""
+    # Create a small empty model with no automatic arrivals
     return ParkingModel(
         road_length=12,
         n_spaces=4,
@@ -27,6 +21,7 @@ def test_adjacent_searching_cars_can_move_together():
         position 4 = A
         position 5 = B
 
+        
     After one movement update:
         position 5 = A
         position 6 = B
@@ -51,9 +46,8 @@ def test_adjacent_searching_cars_can_move_together():
 
 
 def test_parking_car_blocks_following_car():
-    """
-    A car that is PARKING stays still and blocks the searching car directly behind.
-    """
+    # A car that is PARKING stays still and blocks the searching car directly behind.
+    
     model = empty_model()
 
     follower = model._new_vehicle()
@@ -77,8 +71,8 @@ def test_parking_car_blocks_following_car():
 
 def test_two_step_parking_manoeuvre():
     """
-    With parking_manoeuvre_steps=2, the car stays on the road for two parking
-    updates before moving into the parking space.
+    With parking_manoeuvre_steps=2, the car stays on the road for two steps
+    before moving into the parking space.
     """
     model = empty_model()
 

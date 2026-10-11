@@ -1,7 +1,5 @@
-"""Tests for the experiment features added for Checkpoint """
-
+"""Tests for entry control, departure, waiting time, and vehicle locations."""
 from src.model import ParkingModel
-
 
 def test_entry_control_keeps_car_outside_when_threshold_reached():
     """A new arrival should wait outside when occupancy reaches the threshold."""

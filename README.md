@@ -28,18 +28,23 @@ Our hypothesis is that narrower arrival windows produce higher peak
 backlogs and longer waiting times, and that slower parking turnover can
 increase this effect.
 
-This is a hypothesis to test rather than an assumption built into the
-reported conclusions.
+## Project contribution
 
 ## Project contribution
 
-The investigation combines finite parking capacity, temporary blocking
-during parking manoeuvres, and an outside waiting queue.
+This project extends a basic road-traffic model by including limited
+parking spaces, temporary blocking during parking manoeuvres, and an
+outside waiting queue. Vehicles search for spaces, occupy them for a
+period of time, and then leave.
 
-It compares arrival concentration at fixed total demand and examines its
-interaction with parking duration. Measuring both internal searching and
-external waiting helps distinguish overall congestion from a redistribution
-of vehicles between the road and the outside queue.
+Our main question is how arrival timing affects parking-search congestion
+when the total number of arriving vehicles stays the same. We also examine
+how this effect changes with parking duration, which determines how quickly
+spaces become available again.
+
+We measure both vehicles searching inside and vehicles waiting outside.
+This helps us identify whether congestion is reduced overall or whether
+waiting is simply moved from inside the car park to the entrance.
 
 The project is inspired by campus arrival patterns, but it does not use
 measured university timetable or parking data.
@@ -98,7 +103,7 @@ each corresponding vehicle.
 ## Outcome measures
 
 - `mean_total_waiting_time`: mean arrival-to-parking time among vehicles
-  that successfully park. It includes outside waiting, searching and the
+  that successfully park. It includes outside waiting, searching, and the
   parking manoeuvre.
 - `peak_total_backlog`: maximum searching-inside plus waiting-outside count.
 - `cumulative_backlog`: sum of that backlog across recorded steps, measured

@@ -1,11 +1,9 @@
-"""Show one static snapshot of the parking model
-"""
+"""Show one static snapshot of the parking model"""
 import matplotlib.pyplot as plt
 from src.model import ParkingModel
 from utils.visualisation import draw_model
 
 def main():
-    # Create a normal copy of the existing parking model
     model = ParkingModel(
         road_length=30,
         n_spaces=12,
@@ -16,7 +14,7 @@ def main():
         seed=4,
     )
 
-    # Run a few steps so the picture contains some cars
+    # Run a few steps so the picture contains some cars.
     model.run(steps=25)
 
     draw_model(

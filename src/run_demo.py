@@ -1,7 +1,5 @@
 """
 Small baseline demo.
-
-This deliberately demonstrates the basic movement/parking behaviour in a simple way.
 Formal parameter experiments are run from src/experiments.py.
 """
 
@@ -19,8 +17,8 @@ def main():
     print("Legend: S=searching, P=parking, .=empty road position")
     print()
 
-    # Baseline demo only: try to add one car every 3 steps.
-    # Formal experiments use arrival_prob; this regular arrival is only for an easy-to-read demo.
+    # Try a direct arrival every three steps.
+    # The main experiments use fixed arrival schedules.
     for _ in range(30):
         if model.time % 3 == 0:
             model.add_car_at_entrance()

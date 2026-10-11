@@ -1,6 +1,4 @@
-
 """Tests for parking model rules and vehicle conservation."""
-
 from src.model import ParkingModel
 
 
@@ -26,7 +24,7 @@ def place_searching(model, position):
 
 
 def check_conservation(model):
-    """Check that every car has exactly one valid location."""
+    # Check that every car has one valid location
     found = []
 
     for pos, vid in enumerate(model.road):

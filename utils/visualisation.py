@@ -1,5 +1,4 @@
-"""Simple visualisation helpers for the parking-search model.
-"""
+"""Simple visualisation helpers for the parking-search model."""
 import math
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
@@ -9,7 +8,7 @@ ROAD_RADIUS = 1.0
 PARKING_RADIUS = 1.28
 
 def _position_on_circle(index, total, radius):
-    """Return the x/y position for one model position on a circle."""
+    # Return the x/y position for one model position on a circle.
 
     # Convert the road index into an angle around the circle.
     angle = 2 * math.pi * index / total
@@ -21,15 +20,9 @@ def _position_on_circle(index, total, radius):
     return x, y
 
 def draw_model(model, ax=None, title=None):
-    """Draw one static snapshot of the current ParkingModel state.
-
-    The function just read the info from the model.
-    It shows:
-    - the one-way loop road
-    - empty and occupied parking spaces
-    - searching and parking cars on the road
-    - the entrance
-    - a small summary of the current model state
+    """Draw the current model state.
+    Show cars on the road, parking spaces and the entrance.
+    Cars waiting outside are shown as a count in the information box.
     """
 
     # If no matplotlib axes were supplied, create a new figure
@@ -38,8 +31,7 @@ def draw_model(model, ax=None, title=None):
     else:
         fig = ax.figure
 
-    # Remove anything that was already drawn
-    # This will also be useful later when we animate the model
+    # Clear the previous frame before draw the current state.
     ax.clear()
 
     # Draw the road
@@ -96,7 +88,7 @@ def draw_model(model, ax=None, title=None):
             zorder=1,
         )
 
-        # model.spots contains a vehicle ID if the space is occupied
+        # model.spots contains a vehicle ID if the space is occupied.
         occupied = model.spots[spot_idx] is not None
 
         # Filled square = occupied
@@ -116,27 +108,23 @@ def draw_model(model, ax=None, title=None):
 
     for road_pos, vehicle_id in enumerate(model.road):
 
-        # None means this road position is empty
+        # None means this road position is empty.
         if vehicle_id is None:
             continue
-
-        # Find the Vehicle object for this ID
+        
         car = model.vehicles[vehicle_id]
 
-        # Get the x/y position of this road position
         x, y = road_xy[road_pos]
 
-        # Searching cars use a circle
+        # Searching cars use a circle.
         if car.state == "SEARCHING":
             marker = "o"
             marker_colour = "tab:blue"
 
-        # A car currently parking uses an X
+        # A car currently parking uses an X.
         elif car.state == "PARKING":
             marker = "X"
             marker_colour = "tab:orange"
-
-        # should normally not happen
  
         else:
             marker = "o"
@@ -153,9 +141,7 @@ def draw_model(model, ax=None, title=None):
             zorder=4,
         )
 
-    # Mark the entrance
-
-    # Road position 0 is the entrance
+    # Road position 0 is the entrance.
     entrance_x, entrance_y = road_xy[0]
 
     ax.annotate(
@@ -166,8 +152,6 @@ def draw_model(model, ax=None, title=None):
         ha="left",
         va="center",
     )
-
-    # Calculate simple information about the model
 
     searching_count = sum(
         car.state == "SEARCHING"
@@ -186,7 +170,6 @@ def draw_model(model, ax=None, title=None):
 
     waiting_count = len(model.waiting_queue)
 
-    # Text shown in the top-left corner
     info_text = (
         f"Step: {model.time}\n"
         f"Searching inside: {searching_count}\n"
@@ -208,8 +191,6 @@ def draw_model(model, ax=None, title=None):
             "alpha": 0.9,
         },
     )
-
-    # Legend
 
     legend_items = [
         Line2D(
@@ -259,17 +240,16 @@ def draw_model(model, ax=None, title=None):
         loc="lower left",
     )
 
-    # Make the road stay circular
+    # Make the road stay circular.
     ax.set_aspect("equal")
 
-    # Give some extra room around the parking spaces
+    # Give some extra room.
     ax.set_xlim(-1.65, 1.75)
     ax.set_ylim(-1.55, 1.55)
 
-    # Normal graph axes are not useful for this visualisation
+    # Normal graph axes are not useful for this visualisation.
     ax.axis("off")
 
-    # Use a default title
     ax.set_title(
         title or "Parking model state"
     )

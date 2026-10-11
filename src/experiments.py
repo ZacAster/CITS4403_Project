@@ -1,11 +1,9 @@
 """Fixed-demand arrival experiments for the parking-search model."""
-
 import csv
 import math
 from collections import Counter, defaultdict
 from pathlib import Path
 from statistics import mean, pstdev
-
 from src.model import ParkingModel
 
 ROAD_LENGTH = 30
@@ -37,7 +35,7 @@ METRICS = (
 
 
 def build_arrival_times(total_arrivals, burst_width):
-    """Place an exact number of arrivals within a centred, discrete window."""
+    # Place an exact number of arrivals within a centred window.
     if not isinstance(total_arrivals, int) or total_arrivals < 1:
         raise ValueError("total_arrivals must be a positive integer")
 
@@ -60,7 +58,7 @@ def build_arrival_counts(total_arrivals, burst_width):
 
 
 def add_scheduled_arrival(model):
-    """Queue an outside arrival before the existing model update."""
+    # Queue an outside arrival before the existing model update.
     car = model._new_vehicle()
     car.arrival_time = model.time
     car.state = "WAITING"
@@ -77,7 +75,7 @@ def create_burst_model(
     entry_control=ENTRY_CONTROL,
     entry_threshold=0.9,
 ):
-    """Shared model configuration for experiments and animation."""
+    # Shared model configuration for experiments and animation.
     return ParkingModel(
         road_length=ROAD_LENGTH,
         n_spaces=N_SPACES,
@@ -92,7 +90,7 @@ def create_burst_model(
 
 
 def step_scheduled_model(model, arrival_counts):
-    """Apply scheduled arrivals and then advance exactly one model step."""
+    # Apply scheduled arrivals and then advance exactly one model step.
     if model.arrival_prob != 0:
         raise ValueError("Scheduled experiments require arrival_prob=0")
 
@@ -119,7 +117,7 @@ def run_condition(
     entry_control=ENTRY_CONTROL,
     entry_threshold=0.9,
 ):
-    """Run one condition; parking completion does not require departure."""
+    # Run one condition; parking completion does not require departure.
     arrivals = build_arrival_counts(total_arrivals, burst_width)
 
     if not isinstance(steps, int) or steps <= max(arrivals):
@@ -187,7 +185,7 @@ def run_condition(
 
 
 def aggregate_results(raw_rows):
-    """Summarise repetitions without merging different experimental settings."""
+    # Summarise repetitions without merging different experimental settings.
     groups = defaultdict(list)
 
     for row in raw_rows:

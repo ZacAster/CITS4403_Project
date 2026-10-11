@@ -46,7 +46,7 @@ def test_parking_occupancy_never_exceeds_capacity():
 
 
 def test_same_seed_produces_reproducible_state_history():
-    """Identical parameters and seeds should produce identical model behaviour."""
+    # Identical settings and seeds should give the same final locations.
     kwargs = dict(
         road_length=12,
         n_spaces=6,
@@ -71,7 +71,7 @@ def test_same_seed_produces_reproducible_state_history():
 
 
 def test_vehicle_counts_remain_consistent_under_high_demand():
-    """High demand should not duplicate or lose active vehicle IDs."""
+    # Check that active vehicle IDs not duplicated.
     model = ParkingModel(
         road_length=12,
         n_spaces=6,

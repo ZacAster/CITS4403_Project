@@ -5,14 +5,12 @@ from src.experiments import build_arrival_counts
 
 
 def read_csv_rows(path):
-    """Read a result CSV and convert numbers back from strings."""
+    """Read a result CSV, convert strings to number."""
     rows = []
-
-    # Open the CSV
+    
     with Path(path).open(newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file)
         for row in reader:
-            # Store the converted values
             converted = {}
 
             for key, value in row.items():
@@ -26,8 +24,7 @@ def read_csv_rows(path):
 
 
 def finish_plot(fig, output_path=None):
-    """Apply simple spacing and optionally save the figure."""
-
+    """Apply simple spacing ."""
     fig.tight_layout()
 
     # Only save the figure when a path was supplied
@@ -45,10 +42,8 @@ def plot_arrival_patterns(
     output_path=None,
 ):
 
-    # Build the concentrated arrival
     bursty_counts = build_arrival_counts(total_arrivals, bursty_width)
 
-    # Build the more spread-out arrival
     spread_counts = build_arrival_counts(total_arrivals, spread_width)
 
 
@@ -60,7 +55,7 @@ def plot_arrival_patterns(
     spread_values = [spread_counts.get(time, 0) for time in times]
     fig, ax = plt.subplots(figsize=(8, 4.5))
 
-    # Draw the concentrated pattern
+    # concentrated pattern
     ax.plot(
         times,
         bursty_values,
@@ -68,7 +63,7 @@ def plot_arrival_patterns(
         label=f"Bursty: {total_arrivals} cars in {bursty_width} steps",
     )
 
-    # Draw the spread pattern
+    # spread pattern
     ax.plot(
         times,
         spread_values,
@@ -90,7 +85,6 @@ def plot_backlog_comparison(
     output_path=None,
 ):
 
-    # Read the simulation time
     times = [row["time"] for row in bursty_model.step_results]
 
     # Calculate total backlog
@@ -158,11 +152,9 @@ def plot_burst_heatmap(
         f"Mean parking duration = {mean_parking_duration} steps"
     )
 
-    # Add a colour bar
     colour_bar = fig.colorbar(image, ax=ax)
     colour_bar.set_label("Mean waiting time (simulation steps)")
 
-    # Write the numeric value
     for row_index, matrix_row in enumerate(matrix):
         for column_index, value in enumerate(matrix_row):
             ax.text(
