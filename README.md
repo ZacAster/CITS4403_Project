@@ -30,8 +30,6 @@ increase this effect.
 
 ## Project contribution
 
-## Project contribution
-
 This project extends a basic road-traffic model by including limited
 parking spaces, temporary blocking during parking manoeuvres, and an
 outside waiting queue. Vehicles search for spaces, occupy them for a
